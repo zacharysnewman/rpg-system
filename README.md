@@ -1,6 +1,6 @@
 # rpg-system
 
-A flexible, interface-driven RPG game mechanics engine written in C#. Provides the core building blocks for turn-based combat systems: characters, abilities, effects, and resources.
+A flexible, interface-driven RPG game mechanics engine written in C#. Provides the core building blocks for real-time combat systems: characters, abilities, effects, and resources.
 
 ## Concepts
 
