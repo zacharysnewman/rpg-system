@@ -6,11 +6,11 @@ Read `SPEC.md` before making any changes. It is the authoritative reference for 
 
 ## Keeping the Spec Current
 
-**Whenever you modify the codebase, update `SPEC.md` to match.** This includes:
+`SPEC.md` is the source of truth. **Update the spec before changing the code.** This includes:
 
 - Adding, removing, or renaming a class, interface, or field
 - Changing the behavior of an existing method or mechanic
 - Introducing new enumerations or supporting types
 - Restructuring files or directories
 
-The spec is the source of truth for future contributors and agents. Do not leave it stale.
+Write the intended design in `SPEC.md` first, then implement it. This keeps intent and implementation in sync and makes the spec a reliable reference for future contributors and agents.
