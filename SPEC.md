@@ -158,6 +158,8 @@ Adds a modifier entry to a character trait. On `Apply`, a `TraitModifier` refere
 
 **Example uses:** Speed debuff (`ModifierType = FlatAdditive, Amount = -15`), temporary +50% strength buff (`ModifierType = PercentageAdditive, Amount = 0.5`).
 
+All trait changes are expressed as modifiers — there is no absolute set operation. Effects that need to force a trait to a specific value (e.g. a polymorph setting Speed to 5) should instead apply a large negative flat modifier sized to produce the intended result, or set `BaseValue` directly if the change is intended to be a permanent character redefinition rather than a removable effect.
+
 ### `ResourceEffect` (`src/Effects/ResourceEffect.cs`)
 Damages or heals a resource pool. Supports a drain (lifesteal) mechanic and optional damage typing.
 
