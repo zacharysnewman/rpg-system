@@ -11,6 +11,8 @@ src/
 ├── Character.cs              # Central entity class
 ├── Ability.cs                # Active ability class
 ├── ActiveEffect.cs           # Record of an applied ongoing effect
+├── DamageCategory.cs         # Enum grouping damage types (e.g. Elemental, Physical)
+├── DamageType.cs             # Enum of specific damage types (e.g. Fire, Water, Air)
 ├── Duration.cs               # Permanent or timed duration value
 ├── IEffect.cs                # Base interface for all effects
 ├── ITrait.cs                 # Interface for character attributes
@@ -142,15 +144,17 @@ Modifies a character trait — either as a relative delta or an absolute set, wi
 **Example uses:** Speed debuff (`IsRelative = true, Amount = -15`), stat replacement, temporary buffs.
 
 ### `ResourceEffect` (`src/Effects/ResourceEffect.cs`)
-Damages or heals a resource pool. Supports a drain (lifesteal) mechanic.
+Damages or heals a resource pool. Supports a drain (lifesteal) mechanic and optional damage typing.
 
 | Field | Type | Description |
 |---|---|---|
 | `ResourceName` | `string` | Resource to modify (e.g. `"Health"`) |
 | `Amount` | `float` | Positive = heal, negative = damage |
 | `IsDrain` | `bool` | If `true`, the caster gains what the target loses |
+| `DamageType` | `DamageType` | Specific damage type (e.g. `Fire`, `Water`); `Untyped` if not applicable |
+| `DamageCategory` | `DamageCategory` | Broad category (e.g. `Elemental`, `Physical`); `None` if not applicable |
 
-**Example uses:** Direct damage, healing, mana burn, vampiric strike (damage + caster heals same amount).
+**Example uses:** Direct damage, healing, mana burn, vampiric strike, fire damage that checks `FireResistance` and `ElementalResistance` traits.
 
 ### `EnvironmentalEffect` (`src/Effects/EnvironmentalEffect.cs`)
 Creates a persistent area effect anchored to a `Position`. Can act as a trap or lingering hazard.
@@ -191,6 +195,8 @@ These types are referenced throughout the system. Their definitions are not list
 
 | Type | Description |
 |---|---|
+| `DamageType` | Enum of specific damage types: `Untyped`, `Fire`, `Water`, `Air`, `Earth`, `Lightning`. Used on `ResourceEffect` to identify what kind of damage is dealt. |
+| `DamageCategory` | Enum grouping damage types into broad classes: `None`, `Elemental`, `Physical`, `Magic`. Used alongside `DamageType` so resistances can apply at either granularity. |
 | `TriggerType` | Enum of passive ability events: `OnHitTaken`, `OnLowHealth`, `Always`, etc. |
 | `ComparisonType` | Enum of comparison operators: `GreaterThan`, `LessThan`, `Equals`, etc. |
 | `EffectType` | Enum categorizing effect kinds: `ResourceManipulation`, `TraitManipulation`, etc. |

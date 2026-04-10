@@ -139,7 +139,7 @@ Works immediately — just add traits named `FireResistance`, `MagicResistance`,
 ### Where there is tension
 
 **Cooldown Reduction as Resource Manipulation**
-Cooldowns live on `Ability`, not on a resource pool. Treating cooldown as a resource would require either making cooldowns `IResource` instances or handling cooldown reduction as a `TraitEffect` on a cooldown trait. Neither is currently modeled.
+Cooldown reduction fits as an `IResource` with a base value of 0 (0%). The resource represents how much cooldown time is reduced, not the cooldown itself. Ability cooldowns would consult this resource when calculating their effective duration. No fundamental conflict with the framework — just needs to be wired up.
 
 **Spatial Traits (Position, Dimension)**
 `Position` and `Dimension` are typed fields on `Character` — not `ITrait` floats. `TraitEffect` can only modify `ITrait` values. Teleport and summoning cannot be expressed as `TraitEffect` without either:
@@ -148,7 +148,7 @@ Cooldowns live on `Ability`, not on a resource pool. Treating cooldown as a reso
 - Giving `TraitEffect` an escape hatch for arbitrary character field mutation
 
 **Resistance Traits and Typed Damage**
-Resistance traits work as storage, but the system has no concept of damage types. A `ResourceEffect` dealing fire damage has no mechanism to check `FireResistance` before applying. Resistance traits would remain inert decoration until damage types and a mitigation step are added to `ResourceEffect` or the apply pipeline.
+Being addressed. `ResourceEffect` will gain `DamageType` (e.g. `Fire`, `Water`, `Air`) and `DamageCategory` (e.g. `Elemental`, `Physical`). Resistance traits named by convention (`FireResistance`, `ElementalResistance`) can then be consulted during damage application. Both type and category checks allow resistances to operate at either granularity.
 
 **Identity Traits (Form, Abilities)**
 `Form` could be a string trait, but changing `Abilities` — swapping out a character's `ActiveAbilities` or `PassiveAbilities` list — cannot be expressed as a `TraitEffect`. It would require a new effect type (e.g. `TransformEffect`) with direct access to the character's ability collections.
@@ -168,8 +168,8 @@ These work as float traits but have no connection to the targeting or detection 
 | Passive Abilities | Supported; over-time passives need tick loop |
 | Negation / Interruption | Fully supported |
 | Environmental Effects | Fully supported |
-| Cooldown as Resource | Not supported — cooldowns are on `Ability`, not `IResource` |
-| Spatial Traits (Position, Dimension) | Not supported — these are typed fields, not `ITrait` floats |
-| Typed Damage + Resistance Mitigation | Not supported — no damage type concept |
-| Identity Traits (Form, Ability swapping) | Not supported — requires a new effect type |
+| Cooldown as Resource | Resolved — model as an `IResource` starting at 0 (0% reduction) |
+| Spatial Traits (Position, Dimension) | Deferred |
+| Typed Damage + Resistance Mitigation | Being addressed — adding `DamageType` and `DamageCategory` to `ResourceEffect` |
+| Identity Traits (Form, Ability swapping) | Open — see shapeshifting options |
 | Perceptual Traits (Visibility, Perception) | Storable but behaviorally inert without targeting/detection systems |
