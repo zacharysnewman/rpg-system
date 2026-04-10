@@ -10,9 +10,12 @@ A flexible, interface-driven RPG game mechanics engine written in C#. Provides c
 src/
 ├── Character.cs              # Central entity class
 ├── Ability.cs                # Active ability class
+├── ActiveEffect.cs           # Record of an applied ongoing effect
+├── Duration.cs               # Permanent or timed duration value
 ├── IEffect.cs                # Base interface for all effects
 ├── ITrait.cs                 # Interface for character attributes
 ├── IResource.cs              # Interface for resource pools
+├── StackingPolicy.cs         # Enum controlling effect re-application behavior
 ├── Abilities/
 │   ├── PassiveAbility.cs     # Event-triggered ability subclass
 │   └── Condition.cs          # Trait-threshold gate for passive abilities
@@ -35,6 +38,7 @@ Base contract for every effect in the system.
 |---|---|---|
 | `Name` | `string` | Identifier for the effect |
 | `EffectType` | `EffectType` | Enum category (e.g. `ResourceManipulation`, `TraitManipulation`) |
+| `StackingPolicy` | `StackingPolicy` | How to behave when applied to a target that already has this effect active |
 | `Apply(Character target)` | `void` | Applies the effect to the given target |
 
 ### `ITrait` (`src/ITrait.cs`)
@@ -70,8 +74,18 @@ The central game entity. All combat, abilities, and effects operate on character
 | `Traits` | `Dictionary<string, ITrait>` | Named numeric attributes (Speed, Bravery, etc.) |
 | `ActiveAbilities` | `List<Ability>` | Cooldown-based, manually activated abilities |
 | `PassiveAbilities` | `List<PassiveAbility>` | Event-triggered abilities with conditional logic |
+| `ActiveEffects` | `List<ActiveEffect>` | Currently applied ongoing effects and their sources |
 | `Position` | `Position` | Spatial location for range and area checks |
 | `CurrentDimension` | `Dimension` | Current plane; used for teleportation and summoning |
+
+### `ActiveEffect` (`src/ActiveEffect.cs`)
+A record of an effect that has been applied to a character and is currently ongoing. Stored in `Character.ActiveEffects`.
+
+| Field | Type | Description |
+|---|---|---|
+| `Effect` | `IEffect` | The effect definition that was applied |
+| `Source` | `Character` | The character who applied this effect |
+| `ExpiresAt` | `float` | Absolute timestamp when this effect expires; `float.MaxValue` if permanent |
 
 ---
 
@@ -145,7 +159,7 @@ Creates a persistent area effect anchored to a `Position`. Can act as a trap or 
 |---|---|---|
 | `Area` | `EnvironmentArea` | Spatial bounds of the effect |
 | `AreaEffects` | `List<IEffect>` | Effects applied to characters inside the area |
-| `Duration` | `float` | Seconds the area persists |
+| `Duration` | `Duration` | How long the area persists |
 
 `Apply(Character target)` either affects the area immediately or creates a trap that triggers on contact.
 
@@ -165,6 +179,7 @@ Interrupts an in-progress ability cast or applies a silence to a target.
 |---|---|---|
 | `TargetAbilityType` | `AbilityType` | Which class of ability to negate |
 | `SuccessChance` | `float` | Probability of success (0.0–1.0) |
+| `Duration` | `Duration` | How long a silence applied by this effect lasts |
 
 `Apply(Character target)` cancels a matching cast in progress or silences the target for the effect duration.
 
@@ -180,7 +195,8 @@ These types are referenced throughout the system. Their definitions are not list
 | `ComparisonType` | Enum of comparison operators: `GreaterThan`, `LessThan`, `Equals`, etc. |
 | `EffectType` | Enum categorizing effect kinds: `ResourceManipulation`, `TraitManipulation`, etc. |
 | `AbilityType` | Enum used by `NegationEffect` to target specific ability categories |
-| `Duration` | Represents permanent or timed effect duration |
+| `Duration` | Abstract base class for effect duration. Two concrete subtypes: `Permanent` (never expires) and `Timed` (has a `float Seconds` field). Used on effect definitions; `ActiveEffect.ExpiresAt` is derived from this at apply time. |
+| `StackingPolicy` | Enum controlling behavior when an effect is applied to a target that already has it active: `Stack` (each application is a separate independent instance), `RefreshDuration` (resets the duration of the existing instance without adding a new one), `Ignore` (does nothing if the effect is already active) |
 | `Position` | Spatial coordinate (2D or 3D) used for range and area calculations |
 | `Dimension` | Identifies the current plane/realm a character occupies |
 | `TerrainType` | Enum of terrain modifications: ice, lava, mud, water, etc. |

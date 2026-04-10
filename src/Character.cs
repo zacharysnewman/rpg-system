@@ -8,6 +8,7 @@ class Character
     
     public List<PassiveAbility> PassiveAbilities;
     public List<Ability> ActiveAbilities;
+    public List<ActiveEffect> ActiveEffects;
 
     public Position Position; // for spatial logic
     public Dimension CurrentDimension; // for teleportation/summoning
