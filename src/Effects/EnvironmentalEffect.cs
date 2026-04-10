@@ -2,7 +2,7 @@ class EnvironmentalEffect : IEffect
 {
     public EnvironmentArea Area;
     public List<IEffect> AreaEffects;
-    public float Duration;
+    public Duration Duration;
 
     public void Apply(Character target)
     {
