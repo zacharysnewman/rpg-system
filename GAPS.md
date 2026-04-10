@@ -1,93 +1,102 @@
 # Known Gaps
 
-Gaps between this system and what modern RPG engines commonly support. Intended as a design backlog, not a criticism — many of these are intentionally out of scope for a foundational engine.
+Gaps between this system and what modern RPG engines commonly support. Split into two categories:
+
+- **Actual gaps** — hard to work around without pushing significant logic into the game layer, or cases where the system makes a promise it doesn't keep.
+- **Opinionated gaps** — reasonable omissions; depend on game design, genre, or can be cleanly handled outside the engine.
 
 ---
 
-## Effect System
+## Actual Gaps
 
-**No update loop / effect expiry enforcement**
-`ActiveEffect.ExpiresAt` is recorded but nothing removes expired effects or fires expiry callbacks. Effects must be cleaned up manually by the game layer. Periodic effects (damage-over-time, heal-over-time, Windy City-style reapplication) are similarly unsupported without a tick system.
-
-**No effect magnitude caps**
-There is no way to declare "Speed cannot be increased by more than 100% from effects" or to cap the cumulative result of multiple stacking `TraitEffect` instances. The game layer must enforce this externally.
-
-**No effect ordering / priority**
-When multiple `TraitEffect` instances modify the same trait, evaluation order is undefined. Most games distinguish flat additive bonuses from percentage multipliers and apply them in a specified order (e.g. base → flat bonuses → percent multipliers). This system has no such model.
+### Effect System
 
 **No stat layering (base vs. modified)**
-`ITrait.Value` is a single mutable float. Effects mutate it directly with no record of the original base value. There is no way to ask "what is the character's base Speed before effects?" or to remove an effect and restore the prior value cleanly.
+`ITrait.Value` is a single mutable float. Effects mutate it directly with no record of the original base value. There is no way to ask "what is the character's base Speed before effects?" and no clean way to remove an effect and restore the prior value. This makes temporary trait modifications fragile — removing one effect correctly requires knowing exactly what every other active effect contributed.
 
-**No shield / absorption layer**
-Incoming damage hits a resource pool directly. There is no temporary-HP or damage-absorption mechanic that intercepts `ResourceEffect` before it reaches the underlying resource.
+**No effect ordering / priority**
+When multiple `TraitEffect` instances modify the same trait, evaluation order is undefined. Flat additive bonuses and percentage multipliers produce different results depending on order (e.g. base 100 + flat 10, then ×150% = 165 vs. base 100 ×150%, then + 10 = 160). Without a defined model, results are unpredictable when effects are mixed.
 
-**No periodic (over-time) effects**
-DoT and HoT require a tick/update loop to fire effects at regular intervals. The data model for this (e.g. a `TickInterval` on `TraitEffect` or `ResourceEffect`) does not exist.
+**No effect expiry enforcement**
+`ActiveEffect.ExpiresAt` is recorded but nothing removes expired effects or fires expiry callbacks. The system declares that effects expire but provides no mechanism to act on it. The game layer must poll and clean up manually.
 
----
-
-## Crowd Control
-
-**No first-class CC types**
-Stun, root, knockback, fear, and sleep have no representation in the type system. They would need to be approximated by combining `TraitEffect` (zero speed = root) and `NegationEffect` (silence), with no shared abstraction.
-
-**No CC immunity or resistance**
-Characters cannot be marked as immune to a specific effect category (e.g. immune to silence, resistant to stuns). There is no mechanism to intercept or reduce an effect before it applies.
-
-**No diminishing returns**
-Repeated application of the same CC type does not reduce duration or effectiveness. This is a standard mechanic in PvP-oriented games to prevent indefinite lockdown.
-
----
-
-## Ability System
+### Ability System
 
 **No resource costs**
-Abilities have no mechanism to require or consume a resource (mana, energy, stamina) on activation. The game layer would need to check and deduct costs separately before calling `Activate()`.
-
-**No cast time or channel mechanics**
-`Ability.Activate()` is instantaneous. Cast time (delay before effects fire), channel time (effects fire repeatedly while held), and cast interruption are not modeled.
+Abilities have no mechanism to require or consume a resource (mana, energy, stamina) on activation. The game layer must check and deduct costs separately before calling `Activate()`. This is a near-universal RPG mechanic.
 
 **No multi-target or AoE targeting**
-`Activate(Character caster, Character target)` takes exactly one optional target. Cone, line, AoE (radius around caster or point), and multi-target selection are not supported. `EnvironmentalEffect` approximates a placed AoE but requires the game layer to detect and apply it to characters who enter the area.
+`Activate(Character caster, Character target)` accepts exactly one optional target. Cone, line, radius-from-caster, and multi-target selection require the game layer to resolve targets and call `Activate()` once per character. `EnvironmentalEffect` approximates a placed AoE but the system provides no mechanism to detect which characters are inside an area and apply effects to them.
 
 **No ability source on ActiveEffect**
-`ActiveEffect.Source` records which character applied an effect but not which ability triggered it. This makes it impossible to distinguish two different abilities from the same caster, or to implement mechanics like "remove all effects applied by ability X."
+`ActiveEffect.Source` records which character applied an effect but not which ability triggered it. It is impossible to distinguish two different abilities from the same caster, or to implement mechanics like "dispel all effects applied by ability X" or "this passive only reacts to effects I applied."
 
-**No combo or chain mechanics**
-There is no concept of an ability modifying or empowering a subsequent ability (e.g. "next attack deals bonus damage after using ability A").
-
----
-
-## Character Model
+### Character Model
 
 **No teams or factions**
-Characters have no affiliation. Abilities cannot distinguish allies from enemies, so friendly-fire prevention, heal-ally-only targeting, and faction-based passives must be handled entirely outside the system.
+Characters have no affiliation. Abilities cannot distinguish allies from enemies, making it impossible to implement friendly-fire prevention, heal-ally-only targeting, or faction-based passives without external wiring on every ability.
 
 **No death state**
-When a resource (e.g. Health) reaches zero, no behavior is defined. There is no dead/alive flag, no death event for passives to react to, and no respawn or elimination mechanic.
+When a resource (e.g. Health) reaches zero, no behavior is defined. There is no dead/alive flag, no `OnDeath` trigger for passives to react to, and no respawn or elimination mechanic. The system has no answer for what happens next.
 
-**No character progression**
-No XP, levels, or stat growth over time. Ability upgrades, stat scaling, and unlock systems are entirely absent.
-
-**No equipment or inventory**
-Items that grant abilities, modify traits, or add resources are not modeled. The system has no concept of gear slots or item effects.
-
----
-
-## Conditions and Triggers
-
-**No multi-condition gating**
-`Condition` evaluates a single trait against a single threshold. Passives cannot be gated on compound logic ("health < 20% AND mana > 50%") without external wiring.
+### Conditions and Triggers
 
 **Limited trigger vocabulary**
-`TriggerType` covers reactive events like `OnHitTaken` and `OnLowHealth`. Missing common triggers: `OnEffectApplied`, `OnEffectExpired`, `OnKill`, `OnDeath`, `OnAbilityActivated`, `OnEnterArea`, `OnLeaveArea`.
+`TriggerType` covers reactive events like `OnHitTaken` and `OnLowHealth`. Missing triggers that are difficult to approximate: `OnKill`, `OnDeath`, `OnEffectApplied`, `OnEffectExpired`, `OnAbilityActivated`, `OnEnterArea`, `OnLeaveArea`.
 
 ---
 
-## Spatial
+## Opinionated Gaps
+
+These are absent by reasonable design choice. Whether they belong in a base engine depends on the game being built.
+
+### Effect System
+
+**No effect magnitude caps**
+No way to declare "Speed cannot be increased by more than 100% from effects." Enforcing this externally is straightforward; it doesn't require engine-level support.
+
+**No shield / absorption layer**
+No temporary-HP or damage-absorption mechanic. Not universal — many RPGs have no shield mechanic at all.
+
+**No periodic (over-time) effects**
+DoT and HoT require a tick/update loop, which was explicitly deferred. The data model for `TickInterval` also doesn't exist yet, but this is a deliberate scope decision.
+
+### Crowd Control
+
+**No first-class CC types**
+Stun, root, and fear can be approximated: root = `TraitEffect` setting Speed to 0, silence = `NegationEffect`. A dedicated `CrowdControlEffect` would be cleaner but isn't strictly necessary given the extensible `IEffect` interface.
+
+**No CC immunity or resistance**
+Characters cannot be marked immune to a specific effect category. Highly game-specific — many RPGs have no immunity system.
+
+**No diminishing returns**
+Repeated application of the same CC does not reduce duration. This is primarily a PvP concern; most single-player RPGs omit it entirely.
+
+### Ability System
+
+**No cast time or channel mechanics**
+`Ability.Activate()` is instantaneous. Many genres (action RPGs, fighting games) use instant abilities throughout. Cast time is genre-dependent, not universal.
+
+**No combo or chain mechanics**
+No concept of ability B being empowered after ability A. Highly game-specific and commonly implemented at the game layer rather than the engine.
+
+### Character Model
+
+**No character progression**
+No XP, levels, or stat growth. This is intentionally out of scope for a combat engine — progression systems vary too widely across games to belong here.
+
+**No equipment or inventory**
+Items that modify traits or grant abilities are not modeled. Equipment is a game-layer concern that sits above the combat engine.
+
+### Conditions and Triggers
+
+**No multi-condition gating**
+`Condition` evaluates a single trait against a single threshold. For games with simple passives this is sufficient; compound logic ("health < 20% AND mana > 50%") can be handled with chained passives or game-layer checks.
+
+### Spatial
 
 **No line of sight**
-`Ability.Activate()` checks range but not whether the path between caster and target is obstructed.
+Range is checked but path obstruction is not. LoS is highly dependent on the world representation (tile grid, navmesh, physics) and is typically handled outside a combat engine.
 
 **Only circular area shapes**
-`EnvironmentArea` supports a center + radius only. Cone, line, rectangle, and ring shapes are not available.
+`EnvironmentArea` supports center + radius only. Many games use only circular areas; cones and lines are genre-specific additions.
