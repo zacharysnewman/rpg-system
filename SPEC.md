@@ -17,7 +17,9 @@ src/
 ├── IEffect.cs                # Base interface for all effects
 ├── ITrait.cs                 # Interface for character attributes
 ├── IResource.cs              # Interface for resource pools
+├── ModifierType.cs           # Enum for trait modifier evaluation (flat vs. percentage)
 ├── StackingPolicy.cs         # Enum controlling effect re-application behavior
+├── TraitModifier.cs          # A single modifier entry on a trait (source, type, amount)
 ├── Abilities/
 │   ├── PassiveAbility.cs     # Event-triggered ability subclass
 │   └── Condition.cs          # Trait-threshold gate for passive abilities
@@ -44,12 +46,25 @@ Base contract for every effect in the system.
 | `Apply(Character target)` | `void` | Applies the effect to the given target |
 
 ### `ITrait` (`src/ITrait.cs`)
-A single numeric character attribute.
+A single numeric character attribute. The effective `Value` is computed from `BaseValue` and the `Modifiers` list — never stored directly. This ensures any modifier can be cleanly added or removed without corrupting other active modifications.
 
 | Member | Type | Description |
 |---|---|---|
 | `Name` | `string` | Attribute name (e.g. `"Speed"`, `"Bravery"`) |
-| `Value` | `float` | Current attribute value (readable and writable) |
+| `BaseValue` | `float` | Intrinsic value before any modifiers; readable and writable |
+| `Modifiers` | `List<TraitModifier>` | Active modifier entries contributed by effects |
+| `Value` | `float` | Computed read-only effective value: `(BaseValue + Σ flat) × (1 + Σ percentage)` |
+
+Percentage modifiers are summed additively before being applied as a single multiplier (e.g. two +50% modifiers produce ×2.0, not ×2.25).
+
+### `TraitModifier` (`src/TraitModifier.cs`)
+A single modifier entry on a trait, contributed by one effect instance. Stored in `ITrait.Modifiers`.
+
+| Field | Type | Description |
+|---|---|---|
+| `Source` | `IEffect` | The effect that contributed this modifier; used to remove it when the effect expires |
+| `ModifierType` | `ModifierType` | Whether this is a flat additive or percentage additive modifier |
+| `Amount` | `float` | The modifier value (flat units or percentage as a decimal, e.g. `0.5` = +50%) |
 
 ### `IResource` (`src/IResource.cs`)
 A bounded resource pool.
@@ -132,16 +147,16 @@ Evaluates a character's trait against a threshold to gate passive ability activa
 All effects implement `IEffect` and are applied via `Apply(Character target)`.
 
 ### `TraitEffect` (`src/Effects/TraitEffect.cs`)
-Modifies a character trait — either as a relative delta or an absolute set, with optional duration.
+Adds a modifier entry to a character trait. On `Apply`, a `TraitModifier` referencing this effect is added to the target trait's `Modifiers` list. The trait's computed `Value` updates immediately. When this effect is removed from `Character.ActiveEffects`, its modifier is removed from the trait and the value recomputes automatically.
 
 | Field | Type | Description |
 |---|---|---|
 | `TraitName` | `string` | Trait to modify (e.g. `"Speed"`) |
-| `ModifierAmount` | `float` | Amount to apply |
+| `ModifierAmount` | `float` | Amount to apply (flat units, or decimal percentage e.g. `0.5` = +50%) |
+| `ModifierType` | `ModifierType` | Whether this is a `FlatAdditive` or `PercentageAdditive` modifier |
 | `Duration` | `Duration` | `Permanent` or timed (expires after N seconds) |
-| `IsRelative` | `bool` | `true` = additive (`+=`); `false` = absolute set (`=`) |
 
-**Example uses:** Speed debuff (`IsRelative = true, Amount = -15`), stat replacement, temporary buffs.
+**Example uses:** Speed debuff (`ModifierType = FlatAdditive, Amount = -15`), temporary +50% strength buff (`ModifierType = PercentageAdditive, Amount = 0.5`).
 
 ### `ResourceEffect` (`src/Effects/ResourceEffect.cs`)
 Damages or heals a resource pool. Supports a drain (lifesteal) mechanic and optional damage typing.
@@ -197,6 +212,7 @@ These types are referenced throughout the system. Their definitions are not list
 |---|---|
 | `DamageType` | Enum of specific damage types: `Untyped`, `Fire`, `Water`, `Air`, `Earth`, `Lightning`. Used on `ResourceEffect` to identify what kind of damage is dealt. |
 | `DamageCategory` | Enum grouping damage types into broad classes: `None`, `Elemental`, `Physical`, `Magic`. Used alongside `DamageType` so resistances can apply at either granularity. |
+| `ModifierType` | Enum describing how a `TraitModifier` is evaluated: `FlatAdditive` (added to base before multipliers), `PercentageAdditive` (summed with other percentages, applied as a single multiplier). |
 | `TriggerType` | Enum of passive ability events: `OnHitTaken`, `OnLowHealth`, `Always`, etc. |
 | `ComparisonType` | Enum of comparison operators: `GreaterThan`, `LessThan`, `Equals`, etc. |
 | `EffectType` | Enum categorizing effect kinds: `ResourceManipulation`, `TraitManipulation`, etc. |
